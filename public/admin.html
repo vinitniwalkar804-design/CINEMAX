@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc2626'><path d='M7 4v16l13-8L7 4z'/></svg>">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CINEMAX - Authority Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        .hero-gradient { background: linear-gradient(135deg, #8e0404 0%, black 100%); }
+        .seat-available { background-color: #e5e7eb; border: 1px solid #d1d5db; }
+        .seat-booked { background-color: #ef4444; border: 1px solid #dc2626; color: white; }
+        .seat-selected { background-color: #3b82f6; border: 1px solid #2563eb; color: white; }
+        .seat-silver { border-color: #9ca3af; }
+        .seat-gold { border-color: #f59e0b; }
+        .seat-platinum { border-color: #8b5cf6; }
+        .modal-bg { background: rgba(0,0,0,0.7); }
+        @media print {
+            body * { visibility: hidden; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea { position: fixed; top: 0; left: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-950">
+    <nav class="bg-black shadow-md">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-red-600">CINEMAX</h1>
+            <div class="flex items-center gap-4">
+                <span class="text-gray-400 text-sm">Authority Panel</span>
+                <button id="logout" class="text-red-600 hover:text-red-400">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="hero-gradient px-4 py-8 text-center text-white">
+        <h1 class="text-4xl font-bold tracking-wider">AUTHORITY DASHBOARD</h1>
+        <p class="mt-1 text-sm text-gray-300">Manage bookings, seats & attendance</p>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="bg-black text-white">
+        <div class="container mx-auto px-4 py-4 grid grid-cols-3 gap-4 text-center">
+            <div><p class="text-2xl font-bold text-red-500" id="statTotal">0</p><p class="text-xs text-gray-400">Total Bookings</p></div>
+            <div><p class="text-2xl font-bold text-green-400" id="statAttended">0</p><p class="text-xs text-gray-400">Attended</p></div>
+            <div><p class="text-2xl font-bold text-yellow-400" id="statPending">0</p><p class="text-xs text-gray-400">Not Attended</p></div>
+        </div>
+    </div>
+
+    <div class="container mx-auto py-8 px-4">
+
+        <!-- Movie Sections -->
+        <h2 class="text-xl font-bold mb-4 text-white">Movies — Select to manage seats</h2>
+        <div id="movieSections" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-10"></div>
+
+        <!-- Seat Map Modal -->
+        <div id="seatModal" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl w-full max-w-4xl max-h-screen overflow-y-auto p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-xl font-bold" id="modalMovieTitle"></h2>
+                        <div id="modalShowTimes" class="flex flex-wrap gap-2 mt-2"></div>
+                    </div>
+                    <button onclick="closeSeatModal()" class="text-gray-500 hover:text-black text-2xl">&times;</button>
+                </div>
+
+                <div class="mb-4 flex flex-wrap gap-3 text-xs">
+                    <span class="flex items-center gap-1"><span class="h-4 w-4 rounded seat-booked inline-block"></span> Booked</span>
+                    <span class="flex items-center gap-1"><span class="h-4 w-4 rounded seat-selected inline-block"></span> Selected</span>
+                    <span class="flex items-center gap-1"><span class="h-4 w-4 rounded seat-available inline-block"></span> Available</span>
+                    <span class="flex items-center gap-1"><span class="h-4 w-4 rounded border-2 seat-silver inline-block"></span> Silver ₹180</span>
+                    <span class="flex items-center gap-1"><span class="h-4 w-4 rounded border-2 seat-gold inline-block"></span> Gold ₹240</span>
+                    <span class="flex items-center gap-1"><span class="h-4 w-4 rounded border-2 seat-platinum inline-block"></span> Platinum ₹300</span>
+                </div>
+
+                <div class="mb-4 text-center">
+                    <div class="mx-auto h-2 w-3/4 rounded-full bg-gray-400"></div>
+                    <p class="mt-1 text-xs text-gray-500">SCREEN</p>
+                </div>
+
+                <div id="adminSeatGrid" class="overflow-x-auto mb-4"></div>
+
+                <div id="adminSeatSummary" class="hidden bg-gray-50 rounded-lg p-4 mb-4">
+                    <p class="font-semibold text-sm" id="adminSeatsSummaryText"></p>
+                    <p class="text-sm text-gray-600" id="adminTotalText"></p>
+                    <button onclick="openBookingForm()" class="mt-2 bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700">Book for Customer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Booking Form Modal -->
+        <div id="bookingFormModal" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Book for Customer</h2>
+                    <button onclick="closeBookingForm()" class="text-gray-500 hover:text-black text-2xl">&times;</button>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-sm text-gray-600">Customer Name</label>
+                        <input id="custName" type="text" class="w-full border border-gray-300 rounded px-3 py-2 mt-1" placeholder="Full name">
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-600">Phone Number</label>
+                        <input id="custPhone" type="tel" class="w-full border border-gray-300 rounded px-3 py-2 mt-1" placeholder="10-digit phone">
+                    </div>
+                    <div class="bg-gray-50 rounded p-3 text-sm">
+                        <p id="formSeatInfo" class="text-gray-700"></p>
+                        <p id="formAmountInfo" class="font-bold text-green-600 mt-1"></p>
+                    </div>
+
+                    <!-- QR Payment -->
+                    <div class="flex flex-col items-center bg-gray-100 rounded-lg p-4">
+                        <p class="text-xs text-gray-600 mb-2">Scan to collect payment</p>
+                        <div id="qrContainer" class="bg-white p-2 rounded"></div>
+                        <p class="text-xs text-gray-500 mt-1" id="qrPaymentId"></p>
+                    </div>
+
+                    <button id="confirmBookingBtn" onclick="confirmAuthorityBooking()" class="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700">
+                        Mark Payment Done & Confirm Booking
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Bookings Table -->
+        <!-- Tab Buttons -->
+        <div class="flex gap-2 mb-4">
+            <button onclick="switchTab('all')" id="tab-all" class="px-5 py-2 rounded-lg font-semibold text-sm bg-red-600 text-white">Active Bookings</button>
+            <button onclick="switchTab('authorised')" id="tab-authorised" class="px-5 py-2 rounded-lg font-semibold text-sm bg-gray-700 text-gray-300 hover:bg-gray-600">Authorised</button>
+            <button onclick="switchTab('cancelled')" id="tab-cancelled" class="px-5 py-2 rounded-lg font-semibold text-sm bg-gray-700 text-gray-300 hover:bg-gray-600">Cancelled</button>
+        </div>
+
+        <!-- All Bookings -->
+        <div id="section-all">
+            <div id="noBookings" class="hidden text-gray-400 text-center py-8">No bookings yet. Bookings will appear here once customers book tickets.</div>
+            <div class="overflow-x-auto">
+                <table id="bookingsTable" class="hidden w-full bg-white rounded-xl border border-gray-200 text-sm">
+                    <thead class="bg-black text-white">
+                        <tr>
+                            <th class="px-3 py-3 text-left">Customer</th>
+                            <th class="px-3 py-3 text-left">Movie</th>
+                            <th class="px-3 py-3 text-left">Show</th>
+                            <th class="px-3 py-3 text-left">Seats</th>
+                            <th class="px-3 py-3 text-left">Amount</th>
+                            <th class="px-3 py-3 text-left">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Authorised Bookings -->
+        <div id="section-authorised" class="hidden">
+            <div id="noAuthorised" class="hidden text-gray-400 text-center py-8">No authorised bookings yet.</div>
+            <div class="overflow-x-auto">
+                <table id="authorisedTable" class="hidden w-full bg-white rounded-xl border border-gray-200 text-sm">
+                    <thead class="bg-blue-900 text-white">
+                        <tr>
+                            <th class="px-3 py-3 text-left">Customer</th>
+                            <th class="px-3 py-3 text-left">Movie</th>
+                            <th class="px-3 py-3 text-left">Show</th>
+                            <th class="px-3 py-3 text-left">Seats</th>
+                            <th class="px-3 py-3 text-left">Amount</th>
+                            <th class="px-3 py-3 text-left">Authorised At</th>
+                            <th class="px-3 py-3 text-left">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="authorisedBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Cancelled Bookings -->
+        <div id="section-cancelled" class="hidden">
+            <div id="noCancelled" class="hidden text-gray-400 text-center py-8">No cancelled bookings yet.</div>
+            <div class="overflow-x-auto">
+                <table id="cancelledTable" class="hidden w-full bg-white rounded-xl border border-gray-200 text-sm">
+                    <thead class="bg-red-900 text-white">
+                        <tr>
+                            <th class="px-3 py-3 text-left">Customer</th>
+                            <th class="px-3 py-3 text-left">Movie</th>
+                            <th class="px-3 py-3 text-left">Show</th>
+                            <th class="px-3 py-3 text-left">Seats</th>
+                            <th class="px-3 py-3 text-left">Amount</th>
+                            <th class="px-3 py-3 text-left">Cancelled At</th>
+                            <th class="px-3 py-3 text-left">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cancelledBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Area (hidden, used for PDF) -->
+    <div id="printArea" class="hidden fixed top-0 left-0 w-full bg-white p-8 z-[9999]">
+        <div class="max-w-sm mx-auto border border-dashed border-gray-400 p-6 rounded-xl">
+            <div class="text-center border-b border-dashed border-gray-300 pb-4">
+                <h1 class="text-3xl font-bold text-red-600">CINEMAX</h1>
+                <p class="text-xs text-gray-500">Your Premium Cinema Experience</p>
+            </div>
+            <div id="printDetails" class="mt-4 space-y-2 text-sm"></div>
+            <div class="mt-4 flex flex-col items-center border-t border-dashed border-gray-300 pt-4">
+                <div id="printQR" class="bg-white p-1 rounded"></div>
+                <p class="text-xs text-gray-500 mt-1">Show at entry</p>
+            </div>
+            <p class="mt-3 text-center text-xs font-bold text-green-600">CONFIRMED ✓</p>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) { window.location.href = '/'; }
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (!payload.isAuthority) window.location.href = '/home';
+        } catch { window.location.href = '/'; }
+
+        const prices = { 'A':180,'B':180,'C':180,'D':240,'E':240,'F':240,'G':240,'H':240,'I':300,'J':300 };
+        let allMovies = [], allBookings = [], allAuthorised = [], allCancelled = [];
+        let currentMovie = null, currentShowTime = '', adminSelectedSeats = [], adminBookedSeats = [];
+
+        async function loadData() {
+            const [movRes, bookRes, authRes, canRes] = await Promise.all([
+                fetch('/api/movies'),
+                fetch('/api/admin/bookings',  { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/admin/authorised', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/admin/cancelled',  { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
+            allMovies     = await movRes.json();
+            allBookings   = await bookRes.json();
+            allAuthorised = await authRes.json();
+            allCancelled  = await canRes.json();
+            renderMovieSections();
+            renderBookingsTable();
+            renderAuthorisedTable();
+            renderCancelledTable();
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('statTotal').textContent = allBookings.length;
+            document.getElementById('statAttended').textContent = allAuthorised.length;
+            document.getElementById('statPending').textContent = allBookings.length;
+        }
+
+        function renderMovieSections() {
+            const container = document.getElementById('movieSections');
+            container.innerHTML = '';
+            allMovies.forEach(movie => {
+                const confirmedBookings = allBookings.filter(b => b.movieId === movie.id && b.status === 'confirmed');
+                const div = document.createElement('div');
+                div.className = 'bg-gray-900 rounded-xl border border-gray-700 overflow-hidden cursor-pointer hover:border-red-500 hover:shadow-2xl hover:scale-105 transition-all duration-200';
+                div.onclick = () => openSeatModal(movie);
+                div.innerHTML = `
+                    <div class="relative w-full overflow-hidden bg-gray-900" style="height:380px">
+                        <img src="/api/image-proxy?url=${encodeURIComponent(movie.poster)}" alt="${movie.title}"
+                            class="w-full h-full object-cover object-top"
+                            onerror="this.style.display='none'">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-bold text-lg text-white">${movie.title}</h3>
+                        <p class="text-xs text-gray-400">${movie.genre} · ${movie.duration}</p>
+                        <p class="text-xs text-red-400 mt-1 font-semibold">${confirmedBookings.length} seat(s) booked</p>
+                        <p class="text-xs text-gray-500 mt-1">Click to manage seats</p>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function openSeatModal(movie) {
+            currentMovie = movie;
+            adminSelectedSeats = [];
+            document.getElementById('modalMovieTitle').textContent = movie.title;
+            const timesDiv = document.getElementById('modalShowTimes');
+            timesDiv.innerHTML = '';
+            movie.showTimes.forEach((t, i) => {
+                const btn = document.createElement('button');
+                btn.textContent = t;
+                btn.id = 'showBtn_' + i;
+                btn.className = 'border border-gray-300 px-3 py-1 rounded text-sm';
+                btn.onclick = () => selectAdminShowTime(t, movie.id);
+                timesDiv.appendChild(btn);
+            });
+            selectAdminShowTime(movie.showTimes[0], movie.id);
+            document.getElementById('seatModal').classList.remove('hidden');
+        }
+
+        function closeSeatModal() {
+            document.getElementById('seatModal').classList.add('hidden');
+            adminSelectedSeats = [];
+        }
+
+        async function selectAdminShowTime(time, movieId) {
+            currentShowTime = time;
+            adminSelectedSeats = [];
+            document.querySelectorAll('#modalShowTimes button').forEach(b => {
+                b.className = b.textContent === time
+                    ? 'bg-red-600 text-white px-3 py-1 rounded text-sm'
+                    : 'border border-gray-300 px-3 py-1 rounded text-sm';
+            });
+            const res = await fetch(`/api/bookings/${movieId}/${encodeURIComponent(time)}`);
+            adminBookedSeats = await res.json();
+            renderAdminSeats();
+        }
+
+        function renderAdminSeats() {
+            const grid = document.getElementById('adminSeatGrid');
+            grid.innerHTML = '';
+            const rows = ['A','B','C','D','E','F','G','H','I','J'];
+            rows.forEach(row => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'flex items-center gap-1 mb-1';
+                const label = document.createElement('span');
+                label.textContent = row;
+                label.className = 'w-6 text-center text-xs font-semibold text-gray-600';
+                rowDiv.appendChild(label);
+                for (let i = 1; i <= 20; i++) {
+                    const seatId = `${row}${i}`;
+                    const btn = document.createElement('button');
+                    btn.textContent = i;
+                    btn.className = 'h-7 w-7 rounded-t-lg border text-xs font-medium';
+                    if (adminBookedSeats.includes(seatId)) {
+                        btn.className += ' seat-booked cursor-not-allowed';
+                        btn.title = 'Booked';
+                    } else if (adminSelectedSeats.includes(seatId)) {
+                        btn.className += ' seat-selected';
+                        btn.onclick = () => toggleAdminSeat(seatId);
+                    } else {
+                        btn.className += ' seat-available hover:bg-gray-200';
+                        if (['A','B','C'].includes(row)) btn.classList.add('seat-silver');
+                        else if (['D','E','F','G','H'].includes(row)) btn.classList.add('seat-gold');
+                        else btn.classList.add('seat-platinum');
+                        btn.onclick = () => toggleAdminSeat(seatId);
+                    }
+                    rowDiv.appendChild(btn);
+                }
+                grid.appendChild(rowDiv);
+            });
+            updateAdminSummary();
+        }
+
+        function toggleAdminSeat(seatId) {
+            if (adminBookedSeats.includes(seatId)) return;
+            if (adminSelectedSeats.includes(seatId)) {
+                adminSelectedSeats = adminSelectedSeats.filter(s => s !== seatId);
+            } else {
+                adminSelectedSeats.push(seatId);
+            }
+            renderAdminSeats();
+        }
+
+        function updateAdminSummary() {
+            const summary = document.getElementById('adminSeatSummary');
+            if (adminSelectedSeats.length === 0) { summary.classList.add('hidden'); return; }
+            summary.classList.remove('hidden');
+            const total = adminSelectedSeats.reduce((s, seat) => s + prices[seat[0]], 0);
+            document.getElementById('adminSeatsSummaryText').textContent = `Selected: ${adminSelectedSeats.sort().join(', ')}`;
+            document.getElementById('adminTotalText').textContent = `Total: ₹${total}`;
+        }
+
+        let currentPaymentId = '';
+        function openBookingForm() {
+            if (adminSelectedSeats.length === 0) return;
+            const total = adminSelectedSeats.reduce((s, seat) => s + prices[seat[0]], 0);
+            document.getElementById('formSeatInfo').textContent = `Seats: ${adminSelectedSeats.sort().join(', ')} | Show: ${currentShowTime}`;
+            document.getElementById('formAmountInfo').textContent = `Total: ₹${total}`;
+            currentPaymentId = 'AUTH-' + Math.random().toString(36).substr(2,9).toUpperCase();
+            document.getElementById('qrPaymentId').textContent = 'Payment ID: ' + currentPaymentId;
+
+            const qrDiv = document.getElementById('qrContainer');
+            qrDiv.innerHTML = '';
+            new QRCode(qrDiv, {
+                text: `upi://pay?pa=cinemax@upi&pn=Cinemax&am=${total}&cu=INR&tn=${currentPaymentId}`,
+                width: 160, height: 160
+            });
+
+            document.getElementById('bookingFormModal').classList.remove('hidden');
+        }
+
+        function closeBookingForm() {
+            document.getElementById('bookingFormModal').classList.add('hidden');
+        }
+
+        async function confirmAuthorityBooking() {
+            const name = document.getElementById('custName').value.trim();
+            const phone = document.getElementById('custPhone').value.trim();
+            if (!name || !phone) { alert('Please fill customer name and phone.'); return; }
+            const total = adminSelectedSeats.reduce((s, seat) => s + prices[seat[0]], 0);
+            const btn = document.getElementById('confirmBookingBtn');
+            btn.textContent = 'Confirming...'; btn.disabled = true;
+
+            const res = await fetch('/api/admin/book', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    movieId: currentMovie.id, movieTitle: currentMovie.title,
+                    seats: adminSelectedSeats, showTime: currentShowTime,
+                    totalAmount: total, paymentId: currentPaymentId,
+                    customerName: name, customerPhone: phone
+                })
+            });
+            const data = await res.json();
+            btn.textContent = 'Mark Payment Done & Confirm Booking'; btn.disabled = false;
+
+            if (res.ok) {
+                closeBookingForm();
+                closeSeatModal();
+                document.getElementById('custName').value = '';
+                document.getElementById('custPhone').value = '';
+                await loadData();
+                generateTicketPDF({ movieTitle: currentMovie.title, seats: adminSelectedSeats, showTime: currentShowTime, totalAmount: total, paymentId: currentPaymentId, customerName: name, customerPhone: phone, bookingId: data.bookingId });
+            } else {
+                alert('Booking failed: ' + data.message);
+            }
+        }
+
+        function generateTicketPDF(b) {
+            const printArea = document.getElementById('printArea');
+            const printDetails = document.getElementById('printDetails');
+            printDetails.innerHTML = `
+                <div class="flex justify-between"><span class="text-gray-500">Booking ID</span><span class="font-mono text-xs">${b.bookingId || ''}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Customer</span><span>${b.customerName}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Phone</span><span>${b.customerPhone}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Movie</span><span>${b.movieTitle}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Show</span><span>${b.showTime}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Seats</span><span>${b.seats.sort().join(', ')}</span></div>
+                <div class="flex justify-between font-bold border-t border-dashed border-gray-300 pt-2"><span>Total</span><span class="text-green-600">₹${b.totalAmount}</span></div>
+                <div class="flex justify-between text-xs text-gray-400"><span>Payment ID</span><span>${b.paymentId}</span></div>
+            `;
+            const printQR = document.getElementById('printQR');
+            printQR.innerHTML = '';
+            new QRCode(printQR, { text: `CINEMAX|${b.bookingId}|${b.paymentId}`, width: 100, height: 100 });
+
+            printArea.classList.remove('hidden');
+            setTimeout(() => { window.print(); printArea.classList.add('hidden'); }, 500);
+        }
+
+        function switchTab(tab) {
+            ['all','authorised','cancelled'].forEach(t => {
+                document.getElementById('section-' + t).classList.toggle('hidden', t !== tab);
+                const btn = document.getElementById('tab-' + t);
+                btn.className = t === tab
+                    ? 'px-5 py-2 rounded-lg font-semibold text-sm bg-red-600 text-white'
+                    : 'px-5 py-2 rounded-lg font-semibold text-sm bg-gray-700 text-gray-300 hover:bg-gray-600';
+            });
+        }
+
+        function customerCell(b) {
+            const name  = b.bookedByAuthority ? b.customerName : (b.userId?.fullName || b.userId?.username || 'User');
+            const phone = b.bookedByAuthority ? b.customerPhone : (b.userId?.phone || '—');
+            const email = b.userId?.email || '';
+            return `<td class="px-3 py-3">
+                <p class="font-medium">${name}</p>
+                <p class="text-xs text-gray-400">${phone}</p>
+                ${email ? `<p class="text-xs text-gray-400">${email}</p>` : ''}
+                ${b.bookedByAuthority ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-1 rounded">Authority</span>' : ''}
+            </td>`;
+        }
+
+        function renderBookingsTable() {
+            const tbody = document.getElementById('bookingsBody');
+            const table = document.getElementById('bookingsTable');
+            const empty = document.getElementById('noBookings');
+            if (allBookings.length === 0) { table.classList.add('hidden'); empty.classList.remove('hidden'); return; }
+            table.classList.remove('hidden'); empty.classList.add('hidden');
+            tbody.innerHTML = '';
+            allBookings.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-t border-gray-100 hover:bg-gray-50';
+                tr.innerHTML = `
+                    ${customerCell(b)}
+                    <td class="px-3 py-3">${b.movieTitle}</td>
+                    <td class="px-3 py-3">${b.showTime}</td>
+                    <td class="px-3 py-3 font-mono text-xs">${b.seats.sort().join(', ')}</td>
+                    <td class="px-3 py-3 font-semibold text-green-700">₹${b.totalAmount}</td>
+                    <td class="px-3 py-3">
+                        <div class="flex flex-col gap-1">
+                            <button onclick="authoriseBooking('${b._id}')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">Authorise</button>
+                            <button onclick="cancelBookingAdmin('${b._id}')" class="border border-red-600 text-red-600 px-2 py-1 rounded text-xs hover:bg-red-50">Cancel</button>
+                            <button onclick="printTicket('${b._id}')" class="border border-gray-400 text-gray-600 px-2 py-1 rounded text-xs hover:bg-gray-50">Print</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderAuthorisedTable() {
+            const tbody = document.getElementById('authorisedBody');
+            const table = document.getElementById('authorisedTable');
+            const empty = document.getElementById('noAuthorised');
+            if (allAuthorised.length === 0) { table.classList.add('hidden'); empty.classList.remove('hidden'); return; }
+            table.classList.remove('hidden'); empty.classList.add('hidden');
+            tbody.innerHTML = '';
+            allAuthorised.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-t border-gray-100 hover:bg-gray-50';
+                tr.innerHTML = `
+                    ${customerCell(b)}
+                    <td class="px-3 py-3">${b.movieTitle}</td>
+                    <td class="px-3 py-3">${b.showTime}</td>
+                    <td class="px-3 py-3 font-mono text-xs">${b.seats.sort().join(', ')}</td>
+                    <td class="px-3 py-3 font-semibold text-green-700">₹${b.totalAmount}</td>
+                    <td class="px-3 py-3 text-xs text-gray-500">${new Date(b.authorisedAt).toLocaleString()}</td>
+                    <td class="px-3 py-3"><span class="font-semibold text-blue-600">Authorised ✓</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderCancelledTable() {
+            const tbody = document.getElementById('cancelledBody');
+            const table = document.getElementById('cancelledTable');
+            const empty = document.getElementById('noCancelled');
+            if (allCancelled.length === 0) { table.classList.add('hidden'); empty.classList.remove('hidden'); return; }
+            table.classList.remove('hidden'); empty.classList.add('hidden');
+            tbody.innerHTML = '';
+            allCancelled.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-t border-gray-100 hover:bg-gray-50';
+                tr.innerHTML = `
+                    ${customerCell(b)}
+                    <td class="px-3 py-3">${b.movieTitle}</td>
+                    <td class="px-3 py-3">${b.showTime}</td>
+                    <td class="px-3 py-3 font-mono text-xs">${b.seats.sort().join(', ')}</td>
+                    <td class="px-3 py-3 font-semibold text-green-700">₹${b.totalAmount}</td>
+                    <td class="px-3 py-3 text-xs text-gray-500">${new Date(b.cancelledAt).toLocaleString()}</td>
+                    <td class="px-3 py-3"><span class="font-semibold text-red-600">Cancelled</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function authoriseBooking(bookingId) {
+            if (!confirm('Mark this booking as Authorised (attended)?')) return;
+            const res = await fetch(`/api/bookings/${bookingId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ authorised: true })
+            });
+            if (res.ok) await loadData();
+            else alert('Failed to authorise');
+        }
+
+        async function cancelBookingAdmin(bookingId) {
+            if (!confirm('Cancel this booking?')) return;
+            const res = await fetch(`/api/bookings/${bookingId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status: 'cancelled' })
+            });
+            if (res.ok) await loadData();
+            else alert('Failed to cancel');
+        }
+
+        async function deleteRecord(collection, id) {
+            if (!confirm('Permanently delete this record from database?')) return;
+            const res = await fetch(`/api/admin/record/${collection}/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) await loadData();
+            else alert('Delete failed');
+        }
+
+        async function printTicket(bookingId) {
+            const res = await fetch('/api/bookings/id/' + bookingId, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const b = await res.json();
+            const customerName = b.bookedByAuthority ? b.customerName : (b.userId?.fullName || 'Customer');
+            const customerPhone = b.bookedByAuthority ? b.customerPhone : (b.userId?.phone || '');
+            generateTicketPDF({
+                bookingId: b._id, movieTitle: b.movieTitle, seats: b.seats,
+                showTime: b.showTime, totalAmount: b.totalAmount, paymentId: b.paymentId,
+                customerName, customerPhone
+            });
+        }
+
+        document.getElementById('logout').onclick = () => {
+            localStorage.clear();
+            window.location.href = '/';
+        };
+
+        loadData();
+    </script>
+</body>
+</html>

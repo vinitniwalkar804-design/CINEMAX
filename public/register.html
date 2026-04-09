@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CINEMAX - Register</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hero-gradient {
+            background: linear-gradient(135deg, #2f0505 0%, #260202 100%);
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="flex min-h-screen items-center justify-center hero-gradient">
+    <div class="w-full max-w-md animate-black-in rounded-xl border border-gray-300 bg-black p-8 shadow-2xl">
+        <div class="mb-6 text-center">
+            <div class="mx-auto mb-2 h-10 w-10 text-red-600">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16l13-8L7 4z" />
+                </svg>
+            </div>
+            <h1 class="text-4xl font-bold tracking-wider text-red-600">JOIN CINEMAX</h1>
+        </div>
+        <form id="registerForm" class="space-y-3">
+            <input id="fullName" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Full Name" required>
+            <input id="username" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Username" required>
+            <input id="email" type="email" class="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Email" required>
+            <input id="phone" type="text" class="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Phone Number" required>
+            <input id="password" type="password" class="w-full px-3 py-2 border border-gray-300 rounded" placeholder="Password" required>
+            <button type="submit" class="w-full bg-red-600 text-white py-2 rounded hover:bg--700">Create Account</button>
+        </form>
+        <p class="mt-4 text-center text-sm text-gray-600">
+            Already have an account?
+            <a href="/" class="text-red-600 underline">Login</a>
+        </p>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fullName = document.getElementById('fullName').value;
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const phone = document.getElementById('phone').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, fullName, email, phone })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Account created! Please login.');
+                    window.location.href = '/';
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert('Registration failed');
+            }
+        });
+    </script>
+</body>
+</html>

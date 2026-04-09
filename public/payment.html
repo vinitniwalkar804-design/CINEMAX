@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc2626'><path d='M7 4v16l13-8L7 4z'/></svg>">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CINEMAX - Payment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen">
+    <nav class="bg-black shadow-md">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-red-600">CINEMAX</h1>
+            <div class="flex gap-4">
+                <a href="/home" class="text-red-600">Home</a>
+                <a href="/profile" class="text-red-600">Profile</a>
+                <button id="logout" class="text-red-600">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto flex justify-center py-10">
+        <div class="w-full max-w-md bg-white rounded-xl border border-gray-300 p-6">
+            <h1 class="text-3xl font-bold">Payment</h1>
+
+            <div id="details" class="mt-4 space-y-2 text-sm text-gray-600">
+                <!-- Details -->
+            </div>
+
+            <div class="mt-6 flex flex-col items-center rounded-lg bg-gray-100 p-6">
+                <p class="mb-3 text-sm text-gray-600">Scan to pay via UPI</p>
+                <div class="rounded-lg bg-white p-3">
+                    <!-- <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=cinemax@upi&pn=Cinemax&am=100&cu=INR" alt="QR Code"> -->
+                     <img src="qr.jpeg" alt="QR Code">
+                </div>
+                <p class="mt-2 text-xs text-gray-600">Or click below to simulate payment</p>
+            </div>
+
+            <div class="mt-4 text-center text-xs text-gray-600">
+                Payment ID: <span id="paymentId"></span>
+            </div>
+
+            <button id="payBtn" class="mt-4 w-full bg-red-600 text-white py-2 rounded hover:bg-red-700">Pay</button>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/';
+
+        const booking = JSON.parse(localStorage.getItem('booking'));
+        if (!booking) window.location.href = '/home';
+
+        document.getElementById('details').innerHTML = `
+            <p>Movie: <span class="text-black">${booking.movieTitle}</span></p>
+            <p>Show: <span class="text-black">${booking.showTime}</span></p>
+            <p>Seats: <span class="text-black">${booking.seats.sort().join(', ')}</span></p>
+            <p class="text-lg font-bold text-green-600">Total: ₹${booking.totalAmount}</p>
+        `;
+        document.getElementById('paymentId').textContent = 'PAY-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+        document.getElementById('payBtn').onclick = async () => {
+            const btn = document.getElementById('payBtn');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+            setTimeout(async () => {
+                const res = await fetch('/api/book', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ ...booking, paymentId: document.getElementById('paymentId').textContent })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.removeItem('booking');
+                    if (data.bookingId) localStorage.setItem('lastBookingId', data.bookingId);
+                    window.location.href = '/receipt';
+                } else {
+                    alert('Booking failed');
+                    btn.textContent = 'Pay';
+                    btn.disabled = false;
+                }
+            }, 2000);
+        };
+
+        document.getElementById('logout').onclick = () => {
+            localStorage.clear();
+            window.location.href = '/';
+        };
+    </script>
+</body>
+</html>

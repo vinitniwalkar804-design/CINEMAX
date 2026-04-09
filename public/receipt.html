@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc2626'><path d='M7 4v16l13-8L7 4z'/></svg>">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CINEMAX - Receipt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen">
+    <nav class="bg-black shadow-md">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-red-600">CINEMAX</h1>
+            <div class="flex gap-4">
+                <a href="/home" class="text-red-600">Home</a>
+                <a href="/profile" class="text-red-600">Profile</a>
+                <button id="logout" class="text-red-600">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto flex justify-center py-10">
+        <div class="w-full max-w-md">
+            <div class="bg-white rounded-xl border border-gray-300 p-6" id="receipt">
+                <div class="border-b border-dashed border-gray-300 pb-4 text-center">
+                    <h1 class="text-4xl font-bold text-red-600">CINEMAX</h1>
+                    <p class="text-xs text-gray-600">Your Premium Cinema Experience</p>
+                </div>
+
+                <div id="details" class="mt-4 space-y-3">
+                    <!-- Details -->
+                </div>
+
+                <div class="mt-6 flex flex-col items-center border-t border-dashed border-gray-300 pt-4">
+                    <p class="mb-2 text-xs text-gray-600">Scan for verification</p>
+                    <div class="rounded bg-grey p-2">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://cinemax-verify.app/ticket/123" alt="QR Code">
+                    </div>
+                    <p class="mt-1 text-xs text-gray-600">Show this to the authority at entry</p>
+                </div>
+
+                <p class="mt-4 text-center text-xs text-gray-600">
+                    Status: <span class="font-semibold text-green-600">CONFIRMED</span>
+                </p>
+            </div>
+
+            <div class="mt-4 flex gap-3">
+                <button onclick="window.print()" class="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700">Print Receipt</button>
+                <button onclick="window.location.href='/home'" class="flex-1 border border--300 py-2 rounded text-white bg-red-600 hover:bg-red-700">Home</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/';
+
+        // For demo, assume last booking
+        const lastBookingId = localStorage.getItem('lastBookingId');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const fetchUrl = lastBookingId
+            ? '/api/bookings/id/' + lastBookingId
+            : '/api/bookings/user/' + user.id;
+
+        fetch(fetchUrl, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            const booking = Array.isArray(data) ? data[0] : data;
+            if (!booking) return;
+            document.getElementById('details').innerHTML = `
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Booking ID</span>
+                    <span class="font-mono text-black">${booking._id.toUpperCase()}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Name</span>
+                    <span class="text-black">${user.fullName}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Movie</span>
+                    <span class="text-black">${booking.movieTitle}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Show Time</span>
+                    <span class="text-black">${booking.showTime}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Seats</span>
+                    <span class="text-black">${booking.seats.sort().join(', ')}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Section</span>
+                    <span class="text-black">${booking.section}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Payment ID</span>
+                    <span class="font-mono text-black">${booking.paymentId}</span>
+                </div>
+                <div class="flex justify-between border-t border-dashed border-gray-300 pt-2 text-lg font-bold">
+                    <span class="text-gray-600">Total</span>
+                    <span class="text-green-600">₹${booking.totalAmount}</span>
+                </div>
+                <div class="flex justify-between text-xs text-gray-600">
+                    <span>Date</span>
+                    <span>${new Date(booking.bookedAt).toLocaleString()}</span>
+                </div>
+            `;
+        });
+
+        document.getElementById('logout').onclick = () => {
+            localStorage.clear();
+            window.location.href = '/';
+        };
+    </script>
+</body>
+</html>
